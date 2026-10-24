@@ -158,7 +158,7 @@ $('applyDefaultsBtn').onclick=()=>{if(!confirm('按学号应用这 34 位学生�
 $('imageCloseBtn').onclick=()=>$('imageDialog').close();
 
 $('updateBtn').onclick=async()=>{
-  const button=$('updateBtn');button.disabled=true;button.textContent='更新中…';
+  const button=$('updateBtn');button.disabled=true;$('updateLabel').textContent='更新中…';
   try{
     const url=new URL(window.location.href);url.searchParams.set('__update',String(Date.now()));
     const response=await fetch(url.href,{cache:'no-store'});
@@ -177,7 +177,7 @@ $('updateBtn').onclick=async()=>{
       }
     }
     window.location.replace(url.href);
-  }catch(error){toast('更新失败，请检查网络后重试。'+error.message);button.disabled=false;button.textContent='更新版本'}
+  }catch(error){toast('更新失败，请检查网络后重试。'+error.message);button.disabled=false;$('updateLabel').textContent='更新版本'}
 };
 
 // Pull to update only at the page top; dialogs and form controls keep their own gestures.
