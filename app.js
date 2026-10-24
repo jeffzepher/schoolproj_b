@@ -180,6 +180,32 @@ $('updateBtn').onclick=async()=>{
   }catch(error){toast('更新失败，请检查网络后重试。'+error.message);button.disabled=false;button.textContent='更新版本'}
 };
 
+// Pull to update only at the page top; dialogs and form controls keep their own gestures.
+let pullStart=null,pullDistance=0,pullBusy=false;
+function resetPull(){pullStart=null;pullDistance=0;$('pullUpdateHint').hidden=true}
+window.addEventListener('touchstart',event=>{
+  resetPull();
+  if(pullBusy||$('updateBtn').disabled||window.scrollY>0||event.touches.length!==1||document.querySelector('dialog[open]')||event.target.closest('input,textarea,select,button,a'))return;
+  pullStart={x:event.touches[0].clientX,y:event.touches[0].clientY};
+},{passive:true});
+window.addEventListener('touchmove',event=>{
+  if(!pullStart||pullBusy)return;
+  if(event.touches.length!==1||window.scrollY>0){resetPull();return}
+  const dx=event.touches[0].clientX-pullStart.x,dy=event.touches[0].clientY-pullStart.y;
+  if(dy<0||Math.abs(dx)>Math.max(15,dy)){resetPull();return}
+  pullDistance=dy;
+  if(dy<10){$('pullUpdateHint').hidden=true;return}
+  if(event.cancelable)event.preventDefault();
+  $('pullUpdateHint').hidden=false;$('pullUpdateHint').textContent=dy>=80?'↑ 松开更新':'↓ 下拉更新';
+},{passive:false});
+window.addEventListener('touchend',async()=>{
+  const ready=!!pullStart&&pullDistance>=80;pullStart=null;pullDistance=0;
+  if(!ready||pullBusy||$('updateBtn').disabled){resetPull();return}
+  pullBusy=true;$('pullUpdateHint').textContent='正在更新…';
+  try{await $('updateBtn').onclick()}finally{pullBusy=false;resetPull()}
+},{passive:true});
+window.addEventListener('touchcancel',resetPull,{passive:true});
+
 // Installation is requested only after an explicit user click.
 let installPrompt=null;
 $('installBtn').onclick=()=>$('installDialog').showModal();
