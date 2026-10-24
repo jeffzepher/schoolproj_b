@@ -37,7 +37,15 @@
     if(next.length>500)throw Error('应用后名单超过 500 位，请先整理名单');
     state.students=next;
   }
-  const api={homeLists,renameStudent,defaultStudents,applyDefaultStudents};
+  function weeklyTable(students,week){
+    const day=n=>{const d=new Date(week+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)};
+    const weekend=students.some(s=>s.events.some(r=>r.points<0&&r.date>=day(5)&&r.date<=day(6)));
+    const label=r=>(r.points>0?'+':'')+r.points+r.short;
+    const headers=['学号','姓名','总分','一','二','三','四','五',...(weekend?['周末']:[]),'加分'];
+    const rows=students.map(s=>[s.no,s.name,String(s.total),...Array.from({length:5},(_,i)=>s.events.filter(r=>r.points<0&&r.date===day(i)).map(label).join('')),...(weekend?[s.events.filter(r=>r.points<0&&r.date>=day(5)&&r.date<=day(6)).map(label).join('')]:[]),s.events.filter(r=>r.points>0&&r.date>=week&&r.date<=day(6)).map(label).join('；')]);
+    return {headers,rows,weekend};
+  }
+  const api={homeLists,renameStudent,defaultStudents,applyDefaultStudents,weeklyTable};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.ClassStarsCore=api;
 })(typeof window!=='undefined'?window:globalThis);

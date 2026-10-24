@@ -50,7 +50,7 @@ $('rosterFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if
 $('confirmImport').onclick=()=>{const list=candidates($('rosterText').value);if(!list.length){toast('请先选择文件或粘贴名单');return}if(state.students.length+list.length>500){toast('名单最多支持 500 位同学，请分班记录');return}const next=state.students.map(s=>({...s}));let added=0,skipped=0;for(const r of list){if(r.name.length>30||r.no.length>20){toast('姓名或学号过长，请检查名单格式');return}let no=r.no;if(!no){let n=1;while(next.some(s=>s.no===String(n)))n++;no=String(n)}const existing=next.find(s=>s.no===no);if(existing){if(existing.name!==r.name){toast('学号 '+no+' 存在不同姓名，请修改名单后重新导入');return}skipped++;continue}next.push({id:uid(),no,name:r.name});added++}state.students=next;save();render();$('importDialog').close();toast('导入 '+added+' 位，跳过重复 '+skipped+' 位')};
 function download(content,type,name){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)}
 $('templateBtn').onclick=()=>download('\uFEFF学号,姓名\r\n1,张同学\r\n2,李同学\r\n','text/csv;charset=utf-8','学生名单模板.csv');
-$('settingsBtn').onclick=()=>{$('className').value=state.className;$('winnerCount').value=state.winnerCount;$('settingsDialog').showModal()};$('settingsForm').onsubmit=e=>{e.preventDefault();state.className=$('className').value.trim()||'我们的班级';state.winnerCount=Number($('winnerCount').value);save();render();$('settingsDialog').close();toast('班级设置已保存')};
+$('settingsBtn').onclick=()=>{$('className').value=state.className;$('tableTitle').value=state.tableTitle||'';$('winnerCount').value=state.winnerCount;$('settingsDialog').showModal()};$('settingsForm').onsubmit=e=>{e.preventDefault();state.className=$('className').value.trim()||'我们的班级';state.tableTitle=$('tableTitle').value.trim();state.winnerCount=Number($('winnerCount').value);save();render();$('settingsDialog').close();toast('班级设置已保存')};
 $('backupBtn').onclick=()=>download(JSON.stringify(state,null,2),'application/json','班级之星备份-'+dateString(new Date())+'.json');$('restoreFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{if(f.size>30*1024*1024)throw Error('备份文件过大');const incoming=validate(JSON.parse(await f.text()));if(confirm('将用备份中的 '+incoming.students.length+' 位学生、'+incoming.records.length+' 条记录替换当前数据。建议先导出当前备份。继续？')){state=incoming;save();render();$('settingsDialog').close();toast('备份已恢复')}}catch(err){toast('恢复失败：'+err.message)}e.target.value=''};
 function editRule(id){const r=state.rules.find(r=>r.id===id);$('ruleId').value=r?.id||'';$('ruleName').value=r?.name||'';$('ruleShort').value=r?.short||'';$('rulePoints').value=r?.points||1;$('ruleDialog').showModal()}
 $('newRule').onclick=()=>editRule();$('ruleList').onclick=e=>{const b=e.target.closest('[data-rule]');if(b)editRule(b.dataset.rule)};$('ruleForm').onsubmit=e=>{e.preventDefault();const name=$('ruleName').value.trim(),short=$('ruleShort').value.trim(),points=Number($('rulePoints').value);if(!name||!short||!Number.isInteger(points)||!points||Math.abs(points)>100){toast('请填写分类、简称和非零整数分值');return}const r={id:$('ruleId').value||uid(),name,short,points},i=state.rules.findIndex(x=>x.id===r.id);if(i<0){if(state.rules.length>=100){toast('最多支持 100 个分类');return}state.rules.push(r)}else state.rules[i]=r;save();render();$('ruleDialog').close();toast('分类已保存，历史记录保持原评分')};
@@ -58,9 +58,41 @@ $('demoBtn').onclick=()=>{if(state.students.length)return;const names=['林一�
 function wrap(ctx,text,width){const lines=[];let line='';for(const ch of String(text)){if(ctx.measureText(line+ch).width>width&&line){lines.push(line);line=ch}else line+=ch}lines.push(line);return lines}
 function canvasBase(width,height){const c=document.createElement('canvas');c.width=width;c.height=height;const x=c.getContext('2d');x.fillStyle='#fbfcf7';x.fillRect(0,0,width,height);return {c,x}}
 function drawHeader(x,w,title,subtitle){x.fillStyle='#175c47';x.fillRect(0,0,w,170);x.fillStyle='#e0c477';x.font='22px "Microsoft YaHei",sans-serif';x.fillText('✦  每一份努力，都值得被看见',42,48);x.fillStyle='#fff';x.font='bold 40px "Microsoft YaHei",sans-serif';x.fillText(title,40,106);x.font='19px "Microsoft YaHei",sans-serif';x.fillStyle='#d5e4d5';x.fillText(subtitle,42,146)}
-function tableImages(){const students=totals().sort((a,b)=>a.no.localeCompare(b.no,'zh-CN',{numeric:true})),pages=[];const widths=[70,130,75,130,130,130,130,130,130,265],w=1320,margin=0;let current=[],height=225;
-function flush(){if(!current.length)return;pages.push(current);current=[];height=225}
-for(const s of students){const texts=[s.no,s.name,String(s.total),...Array.from({length:6},(_,i)=>s.events.filter(r=>r.points<0&&(i===5?r.date>=shift(week,5):r.date===shift(week,i))).map(eventText).join('；')),s.events.filter(r=>r.points>0).map(eventText).join('；')];const ctx=document.createElement('canvas').getContext('2d');ctx.font='18px "Microsoft YaHei",sans-serif';const lines=texts.map((t,i)=>wrap(ctx,t,widths[i]-18)),h=Math.max(62,Math.max(...lines.map(a=>a.length))*27+20);if(height+h>6500)flush();current.push({s,lines,h});height+=h}flush();return pages.map((rows,page)=>{const h=225+rows.reduce((a,r)=>a+r.h,0)+70,{c,x}=canvasBase(w,h);drawHeader(x,w,state.className+' · 每周积分表',week+' — '+shift(week,6)+'   |   第 '+(page+1)+' / '+pages.length+' 页');const headers=['学号','姓名','总分','周一','周二','周三','周四','周五','周末','加分明细'];let y=184;function cells(texts,rowH,isHeader,s){let left=margin;texts.forEach((lines,i)=>{x.fillStyle=isHeader?'#e9efdf':i===2?'#eef3e6':'#ffffff';x.fillRect(left,y,widths[i],rowH);x.strokeStyle='#d4ddcc';x.strokeRect(left,y,widths[i],rowH);x.fillStyle=isHeader?'#526546':i===2?(s.total<0?'#b4674c':'#175c47'):'#344430';x.font=(i===2&&!isHeader?'bold 21':'18')+'px "Microsoft YaHei",sans-serif';lines.forEach((t,j)=>x.fillText(t,left+9,y+29+j*27));left+=widths[i]});y+=rowH}cells(headers.map(t=>[t]),41,true);rows.forEach(r=>cells(r.lines,r.h,false,r.s));x.fillStyle='#7a8b6c';x.font='17px "Microsoft YaHei",sans-serif';x.fillText('总分 = 本周所有加减分之和  ·  班级之星',40,h-25);return c})}
+function tableImages(){
+const students=totals().sort((a,b)=>a.no.localeCompare(b.no,'zh-CN',{numeric:true}));
+const model=ClassStarsCore.weeklyTable(students,week),pages=[];
+const widths=model.weekend?[48,82,75,114,132,92,208,196,120,253]:[48,82,75,114,132,92,208,196,373],w=1320;
+const measure=document.createElement('canvas').getContext('2d');measure.font='18px KaiTi, STKaiti, SimSun, serif';
+let current=[],height=112;
+for(const values of model.rows){
+  const lines=values.map((t,i)=>wrap(measure,t,widths[i]-12)),rowH=Math.max(48,Math.max(...lines.map(a=>a.length))*25+14);
+  if(height+rowH>6500&&current.length){pages.push(current);current=[];height=112}
+  current.push({lines,rowH});height+=rowH;
+}
+if(current.length)pages.push(current);
+const baseTitle=typeof state.tableTitle==='string'&&state.tableTitle.trim()?state.tableTitle.trim():'班级之星评比（'+week.slice(5).replace('-','.')+'—'+shift(week,6).slice(5).replace('-','.')+'）';
+return pages.map((rows,page)=>{
+  const h=112+rows.reduce((sum,r)=>sum+r.rowH,0),{c,x}=canvasBase(w,h);
+  x.fillStyle='#ffffff';x.fillRect(0,0,w,h);
+  const title=baseTitle+(pages.length>1?'（'+(page+1)+'/'+pages.length+'）':'');
+  let fontSize=42;x.font='bold '+fontSize+'px KaiTi, STKaiti, SimSun, serif';
+  while(x.measureText(title).width>w-30&&fontSize>18){fontSize--;x.font='bold '+fontSize+'px KaiTi, STKaiti, SimSun, serif'}
+  x.fillStyle='#000000';x.textAlign='center';x.textBaseline='middle';x.fillText(title,w/2,35);
+  x.strokeStyle='#000000';x.lineWidth=1;x.strokeRect(0.5,0.5,w-1,70);
+  let y=71;
+  function cells(lines,rowH,isHeader){let left=0;
+    lines.forEach((text,i)=>{
+      x.fillStyle=i===2?'#dbe3f2':'#ffffff';x.fillRect(left,y,widths[i],rowH);
+      x.strokeStyle='#000000';x.lineWidth=1;x.strokeRect(left+0.5,y+0.5,widths[i],rowH);
+      x.fillStyle=i===2?'#ee0000':'#000000';x.font=(isHeader?'bold ':'')+(i===2?'20':'18')+'px KaiTi, STKaiti, SimSun, serif';
+      const centered=isHeader||i<3;x.textAlign=centered?'center':'left';
+      const top=y+(rowH-text.length*25)/2+12.5;
+      text.forEach((line,n)=>x.fillText(line,centered?left+widths[i]/2:left+6,top+n*25));left+=widths[i];
+    });y+=rowH;
+  }
+  cells(model.headers.map(t=>[t]),41,true);rows.forEach(r=>cells(r.lines,r.rowH,false));
+  x.strokeStyle='#000000';x.strokeRect(0.5,0.5,w-1,h-1);return c;
+})}
 function starImages(type='stars'){
 const lists=ClassStarsCore.homeLists(totals(),weekRecords().length>0),winners=type==='top'?lists.top:type==='negative'?lists.negative:ranked().filter(s=>s.rank<=state.winnerCount);
 const title=type==='top'?'班级前十名单':type==='negative'?'负分学生名单':'班级之星';
@@ -83,3 +115,15 @@ render();
 $('applyDefaultsBtn').onclick=()=>{if(!confirm('按学号应用这 34 位学生的默认名单？同学号姓名会更新，现有积分与名单外学生保留。建议先导出备份。'))return;try{ClassStarsCore.applyDefaultStudents(state);save();render();toast('默认名单已应用，历史积分保留')}catch(err){toast(err.message)}};
 
 $('imageCloseBtn').onclick=()=>$('imageDialog').close();
+
+// Installation is requested only after an explicit user click.
+let installPrompt=null;
+$('installBtn').onclick=()=>$('installDialog').showModal();
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();installPrompt=event;$('installNativeBtn').hidden=false});
+$('installNativeBtn').onclick=async()=>{
+  if(!installPrompt)return;
+  const event=installPrompt;installPrompt=null;$('installNativeBtn').hidden=true;
+  try{await event.prompt();const choice=await event.userChoice;if(choice.outcome==='accepted')toast('已提交安装，请按系统提示完成')}catch(error){toast('请使用浏览器菜单中的「添加到主屏幕」')}
+};
+window.addEventListener('appinstalled',()=>{installPrompt=null;$('installNativeBtn').hidden=true;$('installDialog').close();toast('已添加到桌面')});
+if(typeof navigator!=='undefined'&&'serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{ $('installHint').textContent='您仍可通过浏览器菜单添加桌面快捷方式；离线功能暂不可用。' })}
