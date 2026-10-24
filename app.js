@@ -81,3 +81,5 @@ render();
 
 
 $('applyDefaultsBtn').onclick=()=>{if(!confirm('按学号应用这 34 位学生的默认名单？同学号姓名会更新，现有积分与名单外学生保留。建议先导出备份。'))return;try{ClassStarsCore.applyDefaultStudents(state);save();render();toast('默认名单已应用，历史积分保留')}catch(err){toast(err.message)}};
+
+$('imageCloseBtn').onclick=()=>$('imageDialog').close();
