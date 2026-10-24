@@ -1,6 +1,6 @@
 'use strict';
-const CACHE='class-stars-v10';
-const ASSETS=['./','./index.html','./app.js?v=v10','./style.css?v=v10','./core.js?v=v10','./manifest.webmanifest?v=v10','./icon-192.png?v=v10','./icon-512.png?v=v10','./icon-maskable.png?v=v10','./apple-touch-icon.png?v=v10','./favicon.png?v=v10','./xlsx.full.min.js'];
+const CACHE='class-stars-v11';
+const ASSETS=['./','./index.html','./app.js?v=v11','./style.css?v=v11','./core.js?v=v11','./manifest.webmanifest?v=v11','./icon-192.png?v=v11','./icon-512.png?v=v11','./icon-maskable.png?v=v11','./apple-touch-icon.png?v=v11','./favicon.png?v=v11','./xlsx.full.min.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 async function refreshLegacyClient(client){
   if(!client.url.startsWith(self.registration.scope))return;
