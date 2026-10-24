@@ -216,4 +216,20 @@ $('installNativeBtn').onclick=async()=>{
   try{await event.prompt();const choice=await event.userChoice;if(choice.outcome==='accepted')toast('已提交安装，请按系统提示完成')}catch(error){toast('请使用浏览器菜单中的「添加到主屏幕」')}
 };
 window.addEventListener('appinstalled',()=>{installPrompt=null;$('installNativeBtn').hidden=true;$('installDialog').close();toast('已添加到桌面')});
-if(typeof navigator!=='undefined'&&'serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{ $('installHint').textContent='您仍可通过浏览器菜单添加桌面快捷方式；离线功能暂不可用。' })}
+if(typeof navigator!=='undefined'&&'serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message',event=>{
+    if(event.data?.type!=='CLASS_STARS_UPDATE_READY')return;
+    event.ports?.[0]?.postMessage({type:'CLASS_STARS_UPDATE_ACK'});
+    toast('新版已就绪，点击右上角「更新版本」即可加载');
+  });
+  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{ $('installHint').textContent='您仍可通过浏览器菜单添加桌面快捷方式；离线功能暂不可用。' });
+  let lastUpdateCheck=0;
+  const checkOnResume=()=>{
+    if(document.visibilityState==='hidden'||Date.now()-lastUpdateCheck<60000)return;
+    lastUpdateCheck=Date.now();
+    navigator.serviceWorker.getRegistration().then(registration=>registration?.update()).catch(()=>{});
+  };
+  window.addEventListener('pageshow',checkOnResume);
+  window.addEventListener('focus',checkOnResume);
+  document.addEventListener('visibilitychange',checkOnResume);
+}

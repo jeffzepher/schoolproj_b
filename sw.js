@@ -1,8 +1,26 @@
 'use strict';
-const CACHE='class-stars-20261024-pull-update';
-const ASSETS=['./','./index.html','./app.js?v=20261024-pull-update','./style.css?v=20261024-pull-update','./core.js?v=20261024-pull-update','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./xlsx.full.min.js'];
+const CACHE='class-stars-20261024-ios-update';
+const ASSETS=['./','./index.html','./app.js?v=20261024-ios-update','./style.css?v=20261024-ios-update','./core.js?v=20261024-ios-update','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./xlsx.full.min.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
-self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('class-stars-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+async function refreshLegacyClient(client){
+  if(!client.url.startsWith(self.registration.scope))return;
+  const aware=await new Promise(resolve=>{
+    const channel=new MessageChannel();
+    const finish=value=>{clearTimeout(timer);channel.port1.close();resolve(value)};
+    const timer=setTimeout(()=>finish(false),1800);
+    channel.port1.onmessage=event=>{if(event.data?.type==='CLASS_STARS_UPDATE_ACK')finish(true)};
+    try{client.postMessage({type:'CLASS_STARS_UPDATE_READY'},[channel.port2])}catch(error){finish(false)}
+  });
+  // Old installed pages have no update controls or message handler. Reload them once.
+  if(!aware){const url=new URL(client.url);url.searchParams.set('__update',CACHE);await client.navigate(url.href)}
+}
+self.addEventListener('activate',event=>event.waitUntil((async()=>{
+  const keys=await caches.keys();
+  await Promise.all(keys.filter(key=>key.startsWith('class-stars-')&&key!==CACHE).map(key=>caches.delete(key)));
+  await self.clients.claim();
+  const clients=await self.clients.matchAll({type:'window'});
+  await Promise.allSettled(clients.map(refreshLegacyClient));
+})()));
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);
   if(request.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(self.registration.scope))return;
