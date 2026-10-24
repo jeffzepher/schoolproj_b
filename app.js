@@ -157,6 +157,29 @@ $('applyDefaultsBtn').onclick=()=>{if(!confirm('按学号应用这 34 位学生�
 
 $('imageCloseBtn').onclick=()=>$('imageDialog').close();
 
+$('updateBtn').onclick=async()=>{
+  const button=$('updateBtn');button.disabled=true;button.textContent='更新中…';
+  try{
+    const url=new URL(window.location.href);url.searchParams.set('__update',String(Date.now()));
+    const response=await fetch(url.href,{cache:'no-store'});
+    if(!response.ok)throw Error('暂时无法连接网站');
+    if(typeof navigator!=='undefined'&&'serviceWorker' in navigator){
+      const registration=await navigator.serviceWorker.getRegistration();
+      if(registration){
+        await registration.update();
+        const worker=registration.installing||registration.waiting;
+        if(worker&&worker.state!=='activated')await new Promise((resolve,reject)=>{
+          const finish=error=>{clearTimeout(timer);worker.removeEventListener('statechange',check);error?reject(error):resolve()};
+          const check=()=>{if(worker.state==='activated')finish();else if(worker.state==='redundant')finish(Error('新版本下载失败'))};
+          const timer=setTimeout(()=>finish(Error('更新超时，请稍后再试')),15000);
+          worker.addEventListener('statechange',check);check();
+        });
+      }
+    }
+    window.location.replace(url.href);
+  }catch(error){toast('更新失败，请检查网络后重试。'+error.message);button.disabled=false;button.textContent='更新版本'}
+};
+
 // Installation is requested only after an explicit user click.
 let installPrompt=null;
 $('installBtn').onclick=()=>$('installDialog').showModal();
