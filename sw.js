@@ -1,6 +1,6 @@
 'use strict';
-const CACHE='class-stars-20261024-excel';
-const ASSETS=['./','./index.html','./app.js?v=20261024-excel','./style.css?v=20261024-excel','./core.js?v=20261024-excel','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./xlsx.full.min.js'];
+const CACHE='class-stars-20261024-classname';
+const ASSETS=['./','./index.html','./app.js?v=20261024-classname','./style.css?v=20261024-classname','./core.js?v=20261024-classname','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable.png','./xlsx.full.min.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('class-stars-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
