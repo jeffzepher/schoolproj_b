@@ -108,6 +108,40 @@ if(!rows.length){x.fillStyle='#607354';x.font='26px "Microsoft YaHei",sans-serif
 x.fillStyle='#7f8b71';x.font='18px "Microsoft YaHei",sans-serif';x.fillText('让优秀被看见，让进步被鼓励  ·  第 '+(page+1)+' 页',40,h-25);return c})}
 let imageUrls=[];async function exportImages(type){if(!state.students.length){toast('请先导入学生名单');return}if(type==='stars'&&!weekRecords().length){toast('本周还没有评分记录');return}try{await document.fonts.ready;imageUrls.forEach(URL.revokeObjectURL);imageUrls=[];const canvases=type==='table'?tableImages():starImages(type);$('imagePages').replaceChildren();for(let i=0;i<canvases.length;i++){const blob=await new Promise(resolve=>canvases[i].toBlob(resolve,'image/png'));if(!blob)throw Error('图片生成失败');const url=URL.createObjectURL(blob);imageUrls.push(url);const img=new Image();img.src=url;img.alt='评比结果第 '+(i+1)+' 页';const a=document.createElement('a');a.href=url;a.download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'-'+(i+1)+'.png';a.textContent='下载第 '+(i+1)+' 页';$('imagePages').append(img,a)}$('imageDownload').href=imageUrls[0];$('imageDownload').download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'.png';$('imageDialog').showModal()}catch(e){toast('图片生成失败：'+e.message)}};
 $('exportBtn').onclick=()=>exportImages($('exportType').value);
+async function exportExcel(type){
+if(!state.students.length){toast('请先导入学生名单');return}
+if(type==='stars'&&!weekRecords().length){toast('本周还没有评分记录');return}
+const button=$('exportExcelBtn');button.disabled=true;
+try{
+  await loadXlsx();
+  const names={table:'积分表',stars:'荣誉榜',top:'班级前十',negative:'负分名单'},name=names[type];
+  if(!name)throw Error('请选择导出类型');
+  const book=XLSX.utils.book_new(),rows=totals(),lists=ClassStarsCore.homeLists(rows,weekRecords().length>0);
+  let headers,values;
+  if(type==='table'){
+    const model=ClassStarsCore.weeklyTable(rows.slice().sort((a,b)=>a.no.localeCompare(b.no,'zh-CN',{numeric:true})),week);
+    headers=model.headers;values=model.rows.map(row=>row.map((value,i)=>i===2?Number(value):value));
+  }else{
+    const selected=type==='top'?lists.top:type==='negative'?lists.negative:ranked().filter(s=>s.rank<=state.winnerCount);
+    headers=['名次','学号','姓名','总分'];values=selected.map(s=>[s.rank,s.no,s.name,s.total]);
+  }
+  const title=type==='table'?(state.tableTitle||'班级之星评比'):name;
+  const sheet=XLSX.utils.aoa_to_sheet([[title],[state.className+' · '+week+' — '+shift(week,6)],headers,...values]);
+  sheet['!merges']=[0,1].map(r=>({s:{r,c:0},e:{r,c:headers.length-1}}));
+  sheet['!cols']=headers.map(h=>({wch:h==='加分'?42:['学号','名次','总分'].includes(h)?9:h==='姓名'?16:22}));
+  sheet['!autofilter']={ref:XLSX.utils.encode_range({r:2,c:0},{r:values.length+2,c:headers.length-1})};
+  XLSX.utils.book_append_sheet(book,sheet,name);
+  if(type==='table'){
+    const students=new Map(state.students.map(s=>[s.id,s]));
+    const detail=XLSX.utils.aoa_to_sheet([['日期','学号','姓名','评分分类','简称','分数','备注'],...weekRecords().slice().sort((a,b)=>a.date.localeCompare(b.date)||students.get(a.student).no.localeCompare(students.get(b.student).no,'zh-CN',{numeric:true})).map(r=>{const s=students.get(r.student);return [r.date,s.no,s.name,r.category,r.short,r.points,r.note]})]);
+    detail['!cols']=[14,9,16,20,10,9,42].map(wch=>({wch}));
+    XLSX.utils.book_append_sheet(book,detail,'评分记录');
+  }
+  XLSX.writeFile(book,state.className.replace(/[\\/:*?"<>|]/g,'_')+'-'+name+'-'+week+'.xlsx',{compression:true});
+  toast('Excel 已生成，请查看下载文件');
+}catch(err){toast('Excel 导出失败：'+err.message)}finally{button.disabled=false}
+}
+$('exportExcelBtn').onclick=()=>exportExcel($('exportType').value);
 document.querySelectorAll('[data-export]').forEach(b=>b.onclick=()=>exportImages(b.dataset.export));
 render();
 
