@@ -96,16 +96,23 @@ return pages.map((rows,page)=>{
 function starImages(type='stars'){
 const lists=ClassStarsCore.homeLists(totals(),weekRecords().length>0),winners=type==='top'?lists.top:type==='negative'?lists.negative:ranked().filter(s=>s.rank<=state.winnerCount);
 const title=type==='top'?'班级前十名单':type==='negative'?'负分学生名单':'班级之星';
-return Array.from({length:Math.max(1,Math.ceil(winners.length/18))},(_,page)=>{
-const list=winners.slice(page*18,(page+1)*18),w=1000;
-const measure=document.createElement('canvas').getContext('2d');measure.font='bold 27px "Microsoft YaHei",sans-serif';
-const rows=list.map(s=>({s,lines:wrap(measure,s.name,570)}));
-const heights=rows.map(r=>Math.max(86,r.lines.length*36+28)),h=250+Math.max(100,heights.reduce((a,b)=>a+b,0)),{c,x}=canvasBase(w,h);
-drawHeader(x,w,state.className+' · '+title,week+' — '+shift(week,6)+'   |   '+(type==='negative'?'本周总分小于 0':'同分并列'));
-let y=195;
-rows.forEach(({s,lines},i)=>{const rowH=heights[i];x.fillStyle=i%2?'#edf2e5':'#f7f8f0';x.fillRect(35,y,w-70,rowH-10);x.fillStyle='#ad8a34';x.font='bold 25px "Microsoft YaHei",sans-serif';x.fillText(type==='negative'?String(page*18+i+1):'✦ '+s.rank,60,y+40);x.fillStyle='#254b37';x.font='bold 27px "Microsoft YaHei",sans-serif';lines.forEach((line,n)=>x.fillText(line,180,y+40+n*36));x.fillStyle=s.total<0?'#b4674c':'#175c47';x.font='24px "Microsoft YaHei",sans-serif';x.fillText(s.total+' 分',810,y+40);y+=rowH});
-if(!rows.length){x.fillStyle='#607354';x.font='26px "Microsoft YaHei",sans-serif';x.fillText(type==='negative'?'本周暂无负分学生':'本周暂无评分记录',60,245)}
-x.fillStyle='#7f8b71';x.font='18px "Microsoft YaHei",sans-serif';x.fillText('让优秀被看见，让进步被鼓励  ·  第 '+(page+1)+' 页',40,h-25);return c})}
+const count=Math.max(1,Math.ceil(winners.length/25));
+return Array.from({length:count},(_,page)=>{
+  const list=winners.slice(page*25,(page+1)*25),w=900,widths=[120,140,440,160],left=20;
+  const measure=document.createElement('canvas').getContext('2d');measure.font='24px KaiTi, STKaiti, SimSun, serif';
+  const rows=list.map(s=>({values:[String(s.rank),s.no,s.name,String(s.total)],height:Math.max(52,wrap(measure,s.name,420).length*30+18)}));
+  const h=190+(rows.length?rows.reduce((a,r)=>a+r.height,0):72),c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);x.fillStyle='#000';x.textAlign='center';x.textBaseline='middle';
+  x.font='bold 32px KaiTi, STKaiti, SimSun, serif';x.fillText(title,w/2,32);
+  x.font='22px KaiTi, STKaiti, SimSun, serif';x.fillText(state.className,w/2,68);
+  x.font='18px SimSun, serif';x.fillText(week+' — '+shift(week,6)+(count>1?' · '+(page+1)+'/'+count:''),w/2,100);
+  let y=124;x.strokeStyle='#000';x.lineWidth=1;
+  function row(values,height,header){let pos=left;values.forEach((value,i)=>{x.strokeRect(pos+.5,y+.5,widths[i],height);x.fillStyle='#000';x.font=(header?'bold ':'')+'24px KaiTi, STKaiti, SimSun, serif';const lines=wrap(x,value,widths[i]-20);lines.forEach((line,n)=>x.fillText(line,pos+widths[i]/2,y+height/2+(n-(lines.length-1)/2)*30));pos+=widths[i]});y+=height}
+  row(['名次','学号','姓名','总分'],46,true);
+  rows.forEach(r=>row(r.values,r.height,false));
+  if(!rows.length){x.fillStyle='#000';x.font='24px KaiTi, STKaiti, SimSun, serif';x.fillText(type==='negative'?'本周暂无负分学生':'本周暂无评分记录',w/2,y+36)}
+  return c;
+})}
 let imageUrls=[];async function exportImages(type){if(!state.students.length){toast('请先导入学生名单');return}if(type==='stars'&&!weekRecords().length){toast('本周还没有评分记录');return}try{await document.fonts.ready;imageUrls.forEach(URL.revokeObjectURL);imageUrls=[];const canvases=type==='table'?tableImages():starImages(type);$('imagePages').replaceChildren();for(let i=0;i<canvases.length;i++){const blob=await new Promise(resolve=>canvases[i].toBlob(resolve,'image/png'));if(!blob)throw Error('图片生成失败');const url=URL.createObjectURL(blob);imageUrls.push(url);const img=new Image();img.src=url;img.alt='评比结果第 '+(i+1)+' 页';const a=document.createElement('a');a.href=url;a.download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'-'+(i+1)+'.png';a.textContent='下载第 '+(i+1)+' 页';$('imagePages').append(img,a)}$('imageDownload').href=imageUrls[0];$('imageDownload').download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'.png';$('imageDialog').showModal()}catch(e){toast('图片生成失败：'+e.message)}};
 $('exportBtn').onclick=()=>exportImages($('exportType').value);
 async function exportExcel(type){
