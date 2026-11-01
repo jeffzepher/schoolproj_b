@@ -15,11 +15,14 @@ function weekRecords(){return state.records.filter(r=>r.date>=week&&r.date<=shif
 function totals(){const rs=weekRecords();return state.students.map(s=>({...s,events:rs.filter(r=>r.student===s.id),total:rs.filter(r=>r.student===s.id).reduce((a,r)=>a+r.points,0)})).sort((a,b)=>b.total-a.total||a.no.localeCompare(b.no,'zh-CN',{numeric:true}))}
 function ranked(){let last=null,rank=0;return totals().map((s,i)=>{if(s.total!==last)rank=i+1;last=s.total;return {...s,rank}})}
 const signed=n=>n>0?'+'+n:String(n);
+function schoolWeekLabel(date){const n=ClassStarsHistory.weekNumber(date);return n>0?'第'+n+'周':''}
+function weekExportTitle(title){const label=schoolWeekLabel(week);if(!label)return title;return /第\s*\d+\s*周/.test(title)?title.replace(/第\s*\d+\s*周/g,label):title+'（'+label+'）'}
+function recordDateLabel(r){return r.datePrecision==='week'?schoolWeekLabel(r.date)+'（具体日期未注明）':r.datePrecision==='weekend'?schoolWeekLabel(r.date)+'周末（具体日期未注明）':r.date}
 function eventText(r){return signed(r.points)+r.short}
-function render(){const rs=weekRecords(),rows=totals();renderHome(rows,rs.length>0);$('weekTitle').textContent=state.className;$('weekRange').textContent=week+' — '+shift(week,6);$('weekDate').value=week;$('studentCount').textContent=state.students.length;$('positive').textContent='+'+rs.filter(r=>r.points>0).reduce((a,r)=>a+r.points,0);$('recordCount').textContent=rs.length;$('leader').textContent=rs.length&&rows.length?rows[0].name:'等待点亮';$('rosterBadge').textContent=state.students.length+' 位同学';$('empty').classList.toggle('hidden',!!state.students.length);
+function render(){const rs=weekRecords(),rows=totals();renderHome(rows,rs.length>0);$('weekTitle').textContent=state.className;$('weekRange').textContent=(schoolWeekLabel(week)?schoolWeekLabel(week)+' · ':'')+week+' — '+shift(week,6);$('weekDate').value=week;$('studentCount').textContent=state.students.length;$('positive').textContent='+'+rs.filter(r=>r.points>0).reduce((a,r)=>a+r.points,0);$('recordCount').textContent=rs.length;$('leader').textContent=rs.length&&rows.length?rows[0].name:'等待点亮';$('rosterBadge').textContent=state.students.length+' 位同学';$('empty').classList.toggle('hidden',!!state.students.length);
 const q=$('search').value.trim();$('scoreBody').innerHTML=rows.filter(s=>s.name.includes(q)||s.no.includes(q)).sort((a,b)=>a.no.localeCompare(b.no,'zh-CN',{numeric:true})).map(s=>'<tr><td>'+esc(s.no)+'</td><td><button class="score-name" data-student="'+esc(s.id)+'">'+esc(s.name)+'</button><button class="rename-link" data-rename="'+esc(s.id)+'" aria-label="修改'+esc(s.name)+'的姓名">改名</button></td><td class="'+(s.total<0?'minus':'plus')+'">'+s.total+'</td>'+Array.from({length:6},(_,i)=>'<td>'+s.events.filter(r=>r.points<0&&(i===5?r.date>=shift(week,5):r.date===shift(week,i))).map(r=>'<span class="event minus" title="'+esc(r.category+' '+r.note)+'">'+esc(eventText(r))+'</span>').join('')+'</td>').join('')+'<td>'+s.events.filter(r=>r.points>0).map(r=>'<span class="event plus" title="'+esc(r.date+' '+r.category+' '+r.note)+'">'+esc(eventText(r))+'</span>').join('')+'</td></tr>').join('');
 $('rankList').innerHTML=rs.length?ranked().filter(s=>s.rank<=state.winnerCount).map(s=>'<article class="rankcard"><div class="medal">✦ 第 '+s.rank+' 名</div><strong>'+esc(s.name)+'</strong><p>'+s.total+' 分</p><small>班级之星 · '+esc(s.no)+' 号</small></article>').join(''):'<div class="empty">本周还没有评分记录，记录后生成荣誉榜。</div>';
-$('historyList').innerHTML=rs.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id)).map(r=>'<div class="historyrow"><strong class="'+(r.points>0?'plus':'minus')+'">'+signed(r.points)+'</strong><div class="detail">'+esc(state.students.find(s=>s.id===r.student)?.name||'')+' · '+esc(r.category)+'<small>'+esc(r.date+' '+r.note)+'</small></div><button class="quiet" data-delete="'+esc(r.id)+'">删除</button></div>').join('')||'<div class="empty">本周暂无记录</div>';
+$('historyList').innerHTML=rs.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id)).map(r=>'<div class="historyrow"><strong class="'+(r.points>0?'plus':'minus')+'">'+signed(r.points)+'</strong><div class="detail">'+esc(state.students.find(s=>s.id===r.student)?.name||'')+' · '+esc(r.category)+'<small>'+esc(recordDateLabel(r)+' '+r.note)+'</small></div><button class="quiet" data-delete="'+esc(r.id)+'">删除</button></div>').join('')||'<div class="empty">本周暂无记录</div>';
 $('ruleList').innerHTML=state.rules.map(r=>'<article class="rulecard"><div>'+esc(r.name)+'<small>'+esc(r.short)+' · 默认 '+signed(r.points)+' 分</small></div><div class="rule-actions"><button type="button" class="quiet" data-rule="'+esc(r.id)+'">编辑</button><button type="button" class="quiet delete-rule" data-delete-rule="'+esc(r.id)+'" aria-label="删除评分分类'+esc(r.name)+'">删除</button></div></article>').join('')||'<div class="empty">暂无评分分类，点击「添加分类」创建。</div>'}
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['home','scores','ranking','history','rules'].forEach(x=>$(x).classList.toggle('hidden',x!==tab))});
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
@@ -80,14 +83,14 @@ for(const values of model.rows){
   current.push({lines,rowH});height+=rowH;
 }
 if(current.length)pages.push(current);
-const baseTitle=typeof state.tableTitle==='string'&&state.tableTitle.trim()?state.tableTitle.trim():'班级之星评比（'+week.slice(5).replace('-','.')+'—'+shift(week,6).slice(5).replace('-','.')+'）';
+const baseTitle=typeof state.tableTitle==='string'&&state.tableTitle.trim()?weekExportTitle(state.tableTitle.trim()):weekExportTitle('班级之星评比');
 return pages.map((rows,page)=>{
   const h=112+rows.reduce((sum,r)=>sum+r.rowH,0),{c,x}=canvasBase(w,h);
   x.fillStyle='#ffffff';x.fillRect(0,0,w,h);
   const title=baseTitle+(pages.length>1?'（'+(page+1)+'/'+pages.length+'）':'');
-  let fontSize=42;x.font='bold '+fontSize+'px KaiTi, STKaiti, SimSun, serif';
+  let fontSize=36;x.font='bold '+fontSize+'px KaiTi, STKaiti, SimSun, serif';
   while(x.measureText(title).width>w-30&&fontSize>18){fontSize--;x.font='bold '+fontSize+'px KaiTi, STKaiti, SimSun, serif'}
-  x.fillStyle='#000000';x.textAlign='center';x.textBaseline='middle';x.fillText(title,w/2,35);
+  x.fillStyle='#000000';x.textAlign='center';x.textBaseline='middle';x.fillText(title,w/2,26);x.font='16px SimSun, serif';x.fillText(week+' — '+shift(week,6),w/2,57);
   x.strokeStyle='#000000';x.lineWidth=1;x.strokeRect(0.5,0.5,w-1,70);
   let y=71;
   function cells(lines,rowH,isHeader){let left=0;
@@ -105,7 +108,7 @@ return pages.map((rows,page)=>{
 })}
 function starImages(type='stars'){
 const lists=ClassStarsCore.homeLists(totals(),weekRecords().length>0),winners=type==='top'?lists.top:type==='negative'?lists.negative:ranked().filter(s=>s.rank<=state.winnerCount);
-const title=type==='top'?'班级前十名单':type==='negative'?'负分学生名单':'班级之星';
+const title=weekExportTitle(type==='top'?'班级前十名单':type==='negative'?'负分学生名单':'班级之星');
 const count=Math.max(1,Math.ceil(winners.length/25));
 return Array.from({length:count},(_,page)=>{
   const list=winners.slice(page*25,(page+1)*25),w=900,widths=[120,140,440,160],left=20;
@@ -123,7 +126,7 @@ return Array.from({length:count},(_,page)=>{
   if(!rows.length){x.fillStyle='#000';x.font='24px KaiTi, STKaiti, SimSun, serif';x.fillText(type==='negative'?'本周暂无负分学生':'本周暂无评分记录',w/2,y+36)}
   return c;
 })}
-let imageUrls=[];async function exportImages(type){if(!state.students.length){toast('请先导入学生名单');return}if(type==='stars'&&!weekRecords().length){toast('本周还没有评分记录');return}try{await document.fonts.ready;imageUrls.forEach(URL.revokeObjectURL);imageUrls=[];const canvases=type==='table'?tableImages():starImages(type);$('imagePages').replaceChildren();for(let i=0;i<canvases.length;i++){const blob=await new Promise(resolve=>canvases[i].toBlob(resolve,'image/png'));if(!blob)throw Error('图片生成失败');const url=URL.createObjectURL(blob);imageUrls.push(url);const img=new Image();img.src=url;img.alt='评比结果第 '+(i+1)+' 页';const a=document.createElement('a');a.href=url;a.download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'-'+(i+1)+'.png';a.textContent='下载第 '+(i+1)+' 页';$('imagePages').append(img,a)}$('imageDownload').href=imageUrls[0];$('imageDownload').download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+week+'.png';$('imageDialog').showModal()}catch(e){toast('图片生成失败：'+e.message)}};
+let imageUrls=[];async function exportImages(type){if(!state.students.length){toast('请先导入学生名单');return}if(type==='stars'&&!weekRecords().length){toast('本周还没有评分记录');return}try{await document.fonts.ready;imageUrls.forEach(URL.revokeObjectURL);imageUrls=[];const canvases=type==='table'?tableImages():starImages(type);$('imagePages').replaceChildren();for(let i=0;i<canvases.length;i++){const blob=await new Promise(resolve=>canvases[i].toBlob(resolve,'image/png'));if(!blob)throw Error('图片生成失败');const url=URL.createObjectURL(blob);imageUrls.push(url);const img=new Image();img.src=url;img.alt='评比结果第 '+(i+1)+' 页';const a=document.createElement('a');a.href=url;a.download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+schoolWeekLabel(week)+'-'+week+'-'+(i+1)+'.png';a.textContent='下载第 '+(i+1)+' 页';$('imagePages').append(img,a)}$('imageDownload').href=imageUrls[0];$('imageDownload').download=state.className+'-'+({top:'班级前十',negative:'负分名单',stars:'荣誉榜',table:'积分表'}[type])+'-'+schoolWeekLabel(week)+'-'+week+'.png';$('imageDialog').showModal()}catch(e){toast('图片生成失败：'+e.message)}};
 $('exportBtn').onclick=()=>exportImages($('exportType').value);
 async function exportExcel(type){
 if(!state.students.length){toast('请先导入学生名单');return}
@@ -142,19 +145,19 @@ try{
     const selected=type==='top'?lists.top:type==='negative'?lists.negative:ranked().filter(s=>s.rank<=state.winnerCount);
     headers=['名次','学号','姓名','总分'];values=selected.map(s=>[s.rank,s.no,s.name,s.total]);
   }
-  const title=type==='table'?(state.tableTitle||'班级之星评比'):name;
-  const sheet=XLSX.utils.aoa_to_sheet([[title],[state.className+' · '+week+' — '+shift(week,6)],headers,...values]);
+  const title=weekExportTitle(type==='table'?(state.tableTitle||'班级之星评比'):name);
+  const sheet=XLSX.utils.aoa_to_sheet([[title],[state.className+' · '+schoolWeekLabel(week)+' · '+week+' — '+shift(week,6)],headers,...values]);
   sheet['!merges']=[0,1].map(r=>({s:{r,c:0},e:{r,c:headers.length-1}}));
   sheet['!cols']=headers.map(h=>({wch:h==='加分'?42:['学号','名次','总分'].includes(h)?9:h==='姓名'?16:22}));
   sheet['!autofilter']={ref:XLSX.utils.encode_range({r:2,c:0},{r:values.length+2,c:headers.length-1})};
   XLSX.utils.book_append_sheet(book,sheet,name);
   if(type==='table'){
     const students=new Map(state.students.map(s=>[s.id,s]));
-    const detail=XLSX.utils.aoa_to_sheet([['日期','学号','姓名','评分分类','简称','分数','备注'],...weekRecords().slice().sort((a,b)=>a.date.localeCompare(b.date)||students.get(a.student).no.localeCompare(students.get(b.student).no,'zh-CN',{numeric:true})).map(r=>{const s=students.get(r.student);return [r.date,s.no,s.name,r.category,r.short,r.points,r.note]})]);
+    const detail=XLSX.utils.aoa_to_sheet([['日期','学号','姓名','评分分类','简称','分数','备注'],...weekRecords().slice().sort((a,b)=>a.date.localeCompare(b.date)||students.get(a.student).no.localeCompare(students.get(b.student).no,'zh-CN',{numeric:true})).map(r=>{const s=students.get(r.student);return [recordDateLabel(r),s.no,s.name,r.category,r.short,r.points,r.note]})]);
     detail['!cols']=[14,9,16,20,10,9,42].map(wch=>({wch}));
     XLSX.utils.book_append_sheet(book,detail,'评分记录');
   }
-  XLSX.writeFile(book,state.className.replace(/[\\/:*?"<>|]/g,'_')+'-'+name+'-'+week+'.xlsx',{compression:true});
+  XLSX.writeFile(book,state.className.replace(/[\\/:*?"<>|]/g,'_')+'-'+name+'-'+schoolWeekLabel(week)+'-'+week+'.xlsx',{compression:true});
   toast('Excel 已生成，请查看下载文件');
 }catch(err){toast('Excel 导出失败：'+err.message)}finally{button.disabled=false}
 }
