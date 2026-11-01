@@ -24,7 +24,7 @@ const q=$('search').value.trim();$('scoreBody').innerHTML=rows.filter(s=>s.name.
 $('rankList').innerHTML=rs.length?ranked().filter(s=>s.rank<=state.winnerCount).map(s=>'<article class="rankcard"><div class="medal">✦ 第 '+s.rank+' 名</div><strong>'+esc(s.name)+'</strong><p>'+s.total+' 分</p><small>班级之星 · '+esc(s.no)+' 号</small></article>').join(''):'<div class="empty">本周还没有评分记录，记录后生成荣誉榜。</div>';
 $('historyList').innerHTML=rs.slice().sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id)).map(r=>'<div class="historyrow"><strong class="'+(r.points>0?'plus':'minus')+'">'+signed(r.points)+'</strong><div class="detail">'+esc(state.students.find(s=>s.id===r.student)?.name||'')+' · '+esc(r.category)+'<small>'+esc(recordDateLabel(r)+' '+r.note)+'</small></div><button class="quiet" data-delete="'+esc(r.id)+'">删除</button></div>').join('')||'<div class="empty">本周暂无记录</div>';
 $('ruleList').innerHTML=state.rules.map(r=>'<article class="rulecard"><div>'+esc(r.name)+'<small>'+esc(r.short)+' · 默认 '+signed(r.points)+' 分</small></div><div class="rule-actions"><button type="button" class="quiet" data-rule="'+esc(r.id)+'">编辑</button><button type="button" class="quiet delete-rule" data-delete-rule="'+esc(r.id)+'" aria-label="删除评分分类'+esc(r.name)+'">删除</button></div></article>').join('')||'<div class="empty">暂无评分分类，点击「添加分类」创建。</div>'}
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['home','scores','ranking','history','rules'].forEach(x=>$(x).classList.toggle('hidden',x!==tab))});
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;updatePageActions();document.querySelectorAll('[data-tab]').forEach(x=>{x.classList.toggle('active',x===b);if(x===b)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});['home','scores','ranking','history','rules'].forEach(x=>$(x).classList.toggle('hidden',x!==tab))});
 document.querySelectorAll('.close').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 $('search').oninput=render;$('prevWeek').onclick=()=>{week=shift(week,-7);render()};$('nextWeek').onclick=()=>{week=shift(week,7);render()};$('weekDate').onchange=e=>{if(e.target.value){week=monday(e.target.value);render()}};
 function renderHome(rows,hasRecords){
@@ -252,3 +252,26 @@ if(typeof navigator!=='undefined'&&'serviceWorker' in navigator){
   window.addEventListener('focus',checkOnResume);
   document.addEventListener('visibilitychange',checkOnResume);
 }
+
+function updatePageActions(){
+  const pages={home:['班级首页','查看本周表现，记录每一次进步'],scores:['积分总览','查看学生积分与每日表现'],ranking:['荣誉榜单','本周评选结果，同分并列'],history:['记录明细','查看和整理本周的评分记录'],rules:['评分分类','设置常用的加分与扣分项目']};
+  $('pageTitle').textContent=pages[tab][0];$('pageDescription').textContent=pages[tab][1];
+  $('weekToolbar').hidden=tab==='rules';
+  $('exportMenuDialog').close();$('dataMenuDialog').close();
+}
+$('dataMenuBtn').onclick=()=>$('dataMenuDialog').showModal();
+$('openExportBtn').onclick=()=>{
+  $('exportType').value=tab==='ranking'?'stars':'table';
+  $('exportPeriod').textContent=schoolWeekLabel(week)+' · '+week+' — '+shift(week,6);
+  $('exportMenuDialog').showModal();
+};
+$('manageBackupBtn').onclick=()=>{$('dataMenuDialog').close();$('settingsBtn').onclick()};
+$('historyRecordBtn').onclick=()=>openRecord();
+for(const id of ['importBtn','historyImportBtn','installBtn']){
+ const button=$(id);button.addEventListener?.('click',()=>$('dataMenuDialog').close());
+}
+// Close the chooser before opening a result dialog; keep all export handlers unchanged.
+for(const id of ['exportBtn','exportExcelBtn']){
+ const button=$(id),handler=button.onclick;button.onclick=()=>{$('exportMenuDialog').close();return handler()};
+}
+updatePageActions();
