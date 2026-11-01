@@ -157,6 +157,12 @@ try{
     detail['!cols']=[14,9,16,20,10,9,42].map(wch=>({wch}));
     XLSX.utils.book_append_sheet(book,detail,'评分记录');
   }
+  const restoreRows=state.students.map(student=>{
+    const records=weekRecords().filter(r=>r.student===student.id).map(r=>({date:r.date,points:r.points,short:r.short,category:r.category,note:r.note,datePrecision:r.datePrecision||'day'}));
+    return [student.no,student.name,records.reduce((sum,r)=>sum+r.points,0),'',JSON.stringify(records)];
+  });
+  if(restoreRows.some(row=>row[4].length>32767))throw Error('单个学生明细过多，超出 Excel 单元格容量，请导出 JSON 备份');
+  XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['班级之星完整周数据 · '+schoolWeekLabel(week)+' · '+week+' — '+shift(week,6)],['学号','姓名','总分','加分','原始记录'],...restoreRows]),'完整周数据');
   XLSX.writeFile(book,state.className.replace(/[\\/:*?"<>|]/g,'_')+'-'+name+'-'+schoolWeekLabel(week)+'-'+week+'.xlsx',{compression:true});
   toast('Excel 已生成，请查看下载文件');
 }catch(err){toast('Excel 导出失败：'+err.message)}finally{button.disabled=false}

@@ -35,6 +35,7 @@
     if(['总分','总计','合计','积分','本周积分'].includes(name))return 'total';
     if(['加分','加分明细','奖励'].includes(name))return 'positive';
     if(name==='周末')return 'weekend';
+    if(name==='原始记录')return 'raw';
     if(['备注','说明'].includes(name))return 'note';
     const day=name.replace(/^(星期|周)/,'');
     return /^[一二三四五六日天]$/.test(day)?'day'+('一二三四五六日'.indexOf(day==='天'?'日':day)):null;
@@ -90,6 +91,15 @@
     const out={number,period:null,rows:[],records:[],additions:[],duplicates:0,errors:[],warnings:[],nameConflicts:[]};
     let info,format;
     try{info=period(number);out.period=info;format=layout(grid)}catch(error){out.errors.push(error.message);return out}
+    const detected=detectPeriod(grid);
+    if(detected.number&&detected.number!==number){out.errors.push('文件所属第'+detected.number+'周与所选周不一致，请选择文件对应周，避免覆盖其他周');return out}
+    if(!detected.number&&/第\s*\d+\s*周/.test((grid[0]||[]).join(' '))){out.errors.push('标题周次与日期冲突，请修正文件');return out}
+    const metadata=grid.slice(0,Math.max(0,format.header)).map(row=>row.map(text).join(' ')).join(' ');
+    for(const m of metadata.matchAll(/第\s*(\d+)\s*周/g))if(Number(m[1])!==number)out.errors.push('文件周次与所选周不一致');
+    const dates=[...metadata.matchAll(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/g)].map(m=>m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0'));
+    for(const date of dates){try{if(weekNumber(date)!==number)out.errors.push('文件日期与所选周不一致')}catch(error){out.errors.push(error.message)}}
+    if(dates.length===2&&(dates[0]!==info.start||dates[1]!==info.end))out.errors.push('文件起止日期必须为该周周一至周日');
+    if(out.errors.length)return out;
     if(grid.length>2000){out.errors.push('表格超过 2000 行，请每次导入一周');return out}
     const byNo=new Map(),seen=new Set();
     for(const student of state.students){const id=numberKey(student.no);if(byNo.has(id)){out.errors.push('现有名单学号 '+id+' 重复，请先整理');return out}byNo.set(id,student)}
@@ -107,7 +117,7 @@
         if(!/^[+-]?\d+$/.test(totalText)||!Number.isSafeInteger(Number(totalText)))throw Error('总分不是整数，或公式尚未计算，请在 Excel 保存后再导入');
         const expected=Number(totalText),records=[];
         for(let c=0;c<cells.length;c++){
-          const kind=format.columns[c];if(['no','name','total','note'].includes(kind)||!text(cells[c]))continue;
+          const kind=format.columns[c];if(['no','name','total','note','raw'].includes(kind)||!text(cells[c]))continue;
           if(!kind)throw Error('第 '+(c+1)+' 列内容未识别，请补充正确表头');
           const tokens=parseCell(cells[c],state.rules,kind);
           for(const token of tokens){
@@ -117,6 +127,17 @@
             const note='历史导入·第'+number+'周'+(precision==='week'?'；原表加分未注明具体日期':precision==='weekend'?'；原表周末未注明具体日期':'')+(extra?'；'+extra:'');
             records.push({...token,student:student.id,date:shift(info.start,offset),datePrecision:precision,note});
             if(precision!=='day')uncertain=true;
+          }
+        }
+        if(format.columns.includes('raw')){
+          const exact=JSON.parse(String(get('raw')));
+          if(!Array.isArray(exact)||exact.length>100000)throw Error('原始记录格式错误');
+          records.length=0;
+          for(const r of exact){
+            stamp(r.date);
+            if(r.date<info.start||r.date>info.end)throw Error('原始记录日期超出所属周');
+            if(!Number.isInteger(r.points)||!r.points||Math.abs(r.points)>100||typeof r.short!=='string'||r.short.length>6||typeof r.category!=='string'||r.category.length>20||typeof r.note!=='string'||r.note.length>100||!['day','week','weekend'].includes(r.datePrecision||'day'))throw Error('原始记录内容错误');
+            records.push({student:student.id,date:r.date,points:r.points,short:r.short,category:r.category,note:r.note,datePrecision:r.datePrecision||'day'});
           }
         }
         const computed=records.reduce((sum,r)=>sum+r.points,0);
@@ -130,25 +151,19 @@
     }
     if(!out.rows.length&&!out.errors.length)out.errors.push('没有找到可导入的学生行');
     if(uncertain)out.warnings.push('原表加分或周末记录未注明具体日期，将归入所选周并标注「具体日期未注明」，不会猜测实际发生日期。');
-    const allowed=new Set(out.rows.map(row=>row.student)),available=new Map();
-    for(const record of out.records){const k=key(record);available.set(k,(available.get(k)||0)+1)}
-    const existing=new Map();
-    for(const record of state.records.filter(r=>allowed.has(r.student)&&r.date>=info.start&&r.date<=info.end)){
-      const k=key(record);existing.set(k,(existing.get(k)||0)+1);
-      if(existing.get(k)>(available.get(k)||0))out.errors.push('学号 '+state.students.find(s=>s.id===record.student).no+' 本周已有表格以外的明细；为避免叠加或覆盖，本次不导入，请核对已有记录。');
-    }
-    const occurrences=new Map();
-    for(const record of out.records){const k=key(record),n=(occurrences.get(k)||0)+1;occurrences.set(k,n);if(n<=(existing.get(k)||0))out.duplicates++;else out.additions.push(record)}
+    out.replaced=state.records.filter(r=>r.date>=info.start&&r.date<=info.end).length;
+    out.additions=out.records.slice();
     out.errors=[...new Set(out.errors)];
     return out;
   }
   function merge(state,plan,acknowledgeNames){
     if(plan.errors.length)throw Error('请先修正预览中的错误，尚未写入任何数据');
     if(plan.nameConflicts.length&&!acknowledgeNames)throw Error('请确认姓名差异，导入按学号匹配，现有姓名会保留');
-    if(state.records.length+plan.additions.length>100000)throw Error('记录超过 100000 条，请先备份整理');
-    const ids=new Set(state.records.map(r=>r.id));let serial=0;
-    const records=plan.additions.map(r=>{let id;do{id='history-'+plan.period.start+'-'+r.student+'-'+(++serial)}while(ids.has(id));ids.add(id);return {...r,id}});
-    return {...state,records:[...state.records,...records]};
+    const retained=state.records.filter(r=>r.date<plan.period.start||r.date>plan.period.end);
+    if(retained.length+plan.records.length>100000)throw Error('记录超过 100000 条，请先备份整理');
+    const ids=new Set(retained.map(r=>r.id));let serial=0;
+    const records=plan.records.map(r=>{let id;do{id='history-'+plan.period.start+'-'+r.student+'-'+(++serial)}while(ids.has(id));ids.add(id);return {...r,id}});
+    return {...state,records:[...retained,...records]};
   }
   const api={START,period,weekNumber,detectPeriod,preview,merge};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.ClassStarsHistory=api;

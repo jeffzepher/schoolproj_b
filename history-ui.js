@@ -27,7 +27,7 @@ function updateHistoryPreview(){
   if(!historyGrid.length){$('historyNameWrap').hidden=true;$('historySummary').textContent='选择每周积分表或粘贴表格文字，再确认所属周。';$('historyPreview').innerHTML=historyIssues.map(message=>'<p class="history-error">'+esc(message)+'</p>').join('');return}
   const plan=currentHistoryPlan();
   $('historyNameWrap').hidden=!plan.nameConflicts.length;
-  $('historySummary').textContent=(plan.period?'第'+plan.number+'周 · '+plan.period.start+' — '+plan.period.end+'；':'')+'识别 '+plan.rows.length+' 位学生，'+plan.records.length+' 条明细；新增 '+plan.additions.length+' 条，重复 '+plan.duplicates+' 条。';
+  $('historySummary').textContent=(plan.period?'第'+plan.number+'周 · '+plan.period.start+' — '+plan.period.end+'；':'')+'识别 '+plan.rows.length+' 位学生，'+plan.records.length+' 条明细；将覆盖该周原有 '+(plan.replaced||0)+' 条记录。';
   const messages=plan.errors.slice(0,30).map(message=>'<p class="history-error">'+esc(message)+'</p>').join('')+(plan.errors.length>30?'<p>还有 '+(plan.errors.length-30)+' 处错误，请修正文件后再试。</p>':'');
   const warnings=plan.warnings.map(message=>'<p class="history-warning">'+esc(message)+'</p>').join('');
   const names=plan.nameConflicts.map(item=>'<li>'+esc(item.no+'号：表内「'+item.fileName+'」，现有名单「'+item.currentName+'」')+'</li>').join('');
@@ -87,7 +87,7 @@ $('historyFile').onchange=async event=>{
     }
     historyWorkbook=XLSX.read(buffer,{type:'array'});
     if(!historyWorkbook.SheetNames.length)throw Error('文件中没有工作表');
-    $('historySheet').innerHTML=historyWorkbook.SheetNames.map((name,index)=>'<option value="'+index+'">'+esc(name)+'</option>').join('');$('historySheet').value='0';
+    $('historySheet').innerHTML=historyWorkbook.SheetNames.map((name,index)=>'<option value="'+index+'">'+esc(name)+'</option>').join('');$('historySheet').value=String(Math.max(0,historyWorkbook.SheetNames.indexOf('完整周数据')));
     $('historySheetWrap').hidden=historyWorkbook.SheetNames.length===1;selectHistorySheet();
   }catch(error){if(token!==historyLoadToken)return;historyGrid=[];historyIssues=[error.message];updateHistoryPreview();toast('读取失败：'+error.message)}
 };
@@ -95,13 +95,13 @@ $('historyCommitBtn').onclick=()=>{
   const plan=currentHistoryPlan();
   if(plan.errors.length||!plan.rows.length){updateHistoryPreview();toast('请先修正预览中的错误并选择所属周');return}
   if(plan.nameConflicts.length&&!$('historyNameAck').checked){toast('请先确认姓名差异');return}
-  if(!confirm('导入第'+plan.number+'周（'+plan.period.start+' — '+plan.period.end+'）？\n新增 '+plan.additions.length+' 条，跳过重复 '+plan.duplicates+' 条。其他周记录和现有名单保留。'))return;
+  if(!confirm('导入第'+plan.number+'周（'+plan.period.start+' — '+plan.period.end+'）？\n将删除该周原有 '+(plan.replaced||0)+' 条，替换为文件中的 '+plan.records.length+' 条明细（含未列出学生的该周记录）。其他周记录和现有名单保留。'))return;
   try{
-    if(plan.additions.length){
+    {
       const next=ClassStarsHistory.merge(state,plan,$('historyNameAck').checked);validate(next);
       localStorage.setItem(KEY,JSON.stringify(next));state=next;
     }
     week=plan.period.start;render();$('historyImportDialog').close();
-    toast(plan.additions.length?'已导入第'+plan.number+'周：新增 '+plan.additions.length+' 条，跳过重复 '+plan.duplicates+' 条':'该周没有新增明细，已跳过重复记录');
+    toast('已覆盖第'+plan.number+'周：'+plan.records.length+' 条明细，其他周保留');
   }catch(error){toast('导入未完成，原有数据保留：'+error.message);updateHistoryPreview()}
 };
