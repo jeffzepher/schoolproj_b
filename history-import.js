@@ -1,6 +1,7 @@
 (function(root){
   'use strict';
   const START='2026-08-31',DAY=86400000;
+  const TEMPLATE_HEADERS=Object.freeze(['学号','姓名','总分','一','二','三','四','五','展所长']);
   const text=value=>String(value??'').normalize('NFKC').trim();
   function stamp(value){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(value))throw Error('日期格式应为年-月-日');
@@ -33,7 +34,7 @@
     if(['学号','序号','编号'].includes(name))return 'no';
     if(['姓名','学生姓名','学生'].includes(name))return 'name';
     if(['总分','总计','合计','积分','本周积分'].includes(name))return 'total';
-    if(['加分','加分明细','奖励'].includes(name))return 'positive';
+    if(['展所长','加分','加分明细','奖励'].includes(name))return 'positive';
     if(name==='周末')return 'weekend';
     if(name==='原始记录')return 'raw';
     if(['备注','说明'].includes(name))return 'note';
@@ -50,7 +51,7 @@
       }
     }
     const first=grid.findIndex(row=>/^\d+$/.test(text(row[0]))&&text(row[1])&&text(row[2])!=='');
-    if(first<0)throw Error('未找到积分表，请使用「学号、姓名、总分、一、二、三、四、五、加分」列');
+    if(first<0)throw Error('未找到积分表，请保留模板表头：学号、姓名、总分、星期列和展所长（加分）');
     if(grid.slice(first).some(row=>row.length>9&&row.slice(9).some(v=>text(v))))throw Error('无表头数据超过九列，请补充表头以确认每列含义');
     return {header:first-1,columns:['no','name','total','day0','day1','day2','day3','day4','positive']};
   }
@@ -165,6 +166,6 @@
     const records=plan.records.map(r=>{let id;do{id='history-'+plan.period.start+'-'+r.student+'-'+(++serial)}while(ids.has(id));ids.add(id);return {...r,id}});
     return {...state,records:[...retained,...records]};
   }
-  const api={START,period,weekNumber,detectPeriod,preview,merge};
+  const api={START,TEMPLATE_HEADERS,period,weekNumber,detectPeriod,preview,merge};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.ClassStarsHistory=api;
 })(typeof window!=='undefined'?window:globalThis);

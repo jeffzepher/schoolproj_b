@@ -57,6 +57,15 @@ function selectHistorySheet(){
   setHistorySource(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:'',blankrows:true}),historySource+' '+name,issues);
 }
 $('historyImportBtn').onclick=openHistoryImport;
+$('historyTemplateBtn').onclick=async()=>{
+  try{
+    await loadXlsx();
+    const book=XLSX.utils.book_new();
+    const sheet=XLSX.utils.aoa_to_sheet([ClassStarsHistory.TEMPLATE_HEADERS]);
+    XLSX.utils.book_append_sheet(book,sheet,'班级之星评比');
+    XLSX.writeFile(book,'班级之星评比-历史积分模板.xlsx');
+  }catch(error){toast('模板下载失败：'+error.message)}
+};
 $('historyWeekNumber').onchange=()=>{
   historyManualWeek=true;
   try{chooseHistoryWeek($('historyWeekNumber').value);updateHistoryPreview()}catch(error){chooseHistoryWeek(null);$('historyCommitBtn').disabled=true;$('historySummary').textContent=error.message}
